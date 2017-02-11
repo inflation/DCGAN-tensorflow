@@ -138,29 +138,23 @@ class DCGAN(object):
         else:
             # TODO: Remove D_logits, D_logits_
             self.G = self.generator(self.z)
-            self.D, self.D_logits = self.discriminator(inputs)
+            self.D = self.discriminator(inputs)
 
             self.sampler = self.sampler(self.z)
-            self.D_fake, self.D_logits_ = self.discriminator(self.G, reuse=True)
+            self.D_fake = self.discriminator(self.G, reuse=True)
 
         self.D_sum = histogram_summary("d", self.D)
         self.D_fake_sum = histogram_summary("d_", self.D_fake)
         self.G_sum = image_summary("G", self.G)
 
-        self.d_loss_real = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                logits=self.D_logits, labels=tf.ones_like(self.D)))
-        self.d_loss_fake = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                logits=self.D_logits_, labels=tf.zeros_like(self.D_fake)))
-        self.g_loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                logits=self.D_logits_, labels=tf.ones_like(self.D_fake)))
+        self.d_loss_real = tf.reduce_mean(self.D)
+        self.d_loss_fake = tf.reduce_mean(self.D_fake)
+        self.g_loss = tf.reduce_mean(-self.D_fake)
 
         self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
 
-        self.d_loss = self.d_loss_real + self.d_loss_fake
+        self.d_loss = self.d_loss_fake - self.d_loss_real
 
         self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
         self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
@@ -180,10 +174,15 @@ class DCGAN(object):
             data = glob(os.path.join("./data", config.dataset, self.input_fname_pattern))
         # np.random.shuffle(data)
 
-        d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-            .minimize(self.d_loss, var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-            .minimize(self.g_loss, var_list=self.g_vars)
+        if config.adam:
+            d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+                .minimize(self.d_loss, var_list=self.d_vars)
+            g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+                .minimize(self.g_loss, var_list=self.g_vars)
+        else:
+            d_optim = tf.train.RMSPropOptimizer(config.learning_rate_D).minimize(self.d_loss, var_list=self.d_vars)
+            g_optim = tf.train.AdamOptimizer(config.learning_rate_G).minimize(self.g_loss, var_list=self.g_vars)
+
         try:
             tf.global_variables_initializer().run()
         except AttributeError:
@@ -360,7 +359,7 @@ class DCGAN(object):
                 h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
                 h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
 
-                return tf.nn.sigmoid(h4), h4
+                return h4
             else:
                 yb = tf.reshape(y, [self.batch_size, 1, 1, self.y_dim])
                 x = conv_cond_concat(image, yb)
@@ -377,7 +376,7 @@ class DCGAN(object):
 
                 h3 = linear(h2, 1, 'd_h3_lin')
 
-                return tf.nn.sigmoid(h3), h3
+                return h3
 
     def generator(self, z, y=None):
         with tf.variable_scope("generator") as scope:
