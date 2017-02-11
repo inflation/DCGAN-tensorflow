@@ -232,5 +232,5 @@ def visualize(sess, dcgan, config, option):
             make_gif(image_set[-1], './samples/test_gif_%s.gif' % (idx))
 
         new_image_set = [merge(np.array([images[idx] for images in image_set]), [10, 10]) \
-                         for idx in list(range(64)) + list(range(63, -1, -1)]
+                         for idx in list(range(64)) + list(range(63, -1, -1))]
         make_gif(new_image_set, './samples/test_gif_merged.gif', duration=8)
