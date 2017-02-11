@@ -78,7 +78,7 @@ class DCGAN(object):
         self.D = None
         self.D_sum = None
 
-        self.sampler = None
+        self.S = None
         self.D_fake = None
         self.D_fake_sum = None
 
@@ -129,22 +129,21 @@ class DCGAN(object):
 
         if self.y_dim:
             self.G = self.generator(self.z, self.y)
-            self.D, self.D_logits = \
+            self.D = \
                 self.discriminator(inputs, self.y, reuse=False)
 
-            self.sampler = self.sampler(self.z, self.y)
-            self.D_fake, self.D_logits_ = \
+            self.S = self.sampler(self.z, self.y)
+            self.D_fake = \
                 self.discriminator(self.G, self.y, reuse=True)
         else:
-            # TODO: Remove D_logits, D_logits_
             self.G = self.generator(self.z)
             self.D = self.discriminator(inputs)
 
-            self.sampler = self.sampler(self.z)
+            self.S = self.sampler(self.z)
             self.D_fake = self.discriminator(self.G, reuse=True)
 
         self.D_sum = histogram_summary("d", self.D)
-        self.D_fake_sum = histogram_summary("d_", self.D_fake)
+        self.D_fake_sum = histogram_summary("d_fake", self.D_fake)
         self.G_sum = image_summary("G", self.G)
 
         self.d_loss_real = tf.reduce_mean(self.D)
@@ -317,7 +316,7 @@ class DCGAN(object):
                 if np.mod(counter, 100) == 1:
                     if config.dataset == 'mnist':
                         samples, d_loss, g_loss = self.sess.run(
-                            [self.sampler, self.d_loss, self.g_loss],
+                            [self.S, self.d_loss, self.g_loss],
                             feed_dict={
                                 self.z: sample_z,
                                 self.inputs: sample_inputs,
@@ -331,7 +330,7 @@ class DCGAN(object):
                     else:
                         try:
                             samples, d_loss, g_loss = self.sess.run(
-                                [self.sampler, self.d_loss, self.g_loss],
+                                [self.S, self.d_loss, self.g_loss],
                                 feed_dict={
                                     self.z: sample_z,
                                     self.inputs: sample_inputs,
